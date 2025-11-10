@@ -8,6 +8,7 @@ from .channel import Channel, ChannelMetrics, UtilizationLevel
 if TYPE_CHECKING:
     from ..forecasting.predictor import ForecastResult
     from ..recommendations.engine import Recommendation
+    from ..cost_calculator.calculator import CostBreakdown, UpgradeCostEstimate, FinancialSummary
 
 
 @dataclass
@@ -36,6 +37,10 @@ class ChannelAnalysis:
     forecast_confidence: Optional[float] = None  # 0-1
     is_accelerating: bool = False
     seasonal_pattern: Optional[str] = None
+
+    # Financial data (optional)
+    cost_breakdown: Optional['CostBreakdown'] = None
+    upgrade_cost_estimate: Optional['UpgradeCostEstimate'] = None
 
     @property
     def is_critical(self) -> bool:
@@ -100,9 +105,12 @@ class CapacityReport:
     # Summary
     summary: SummaryStats
 
+    # Financial summary (optional)
+    financial_summary: Optional['FinancialSummary'] = None
+
     # Metadata
     generated_by: str = "Capacity Manager"
-    version: str = "0.1.0"
+    version: str = "0.3.0"
 
     def get_critical_channels(self) -> List[ChannelAnalysis]:
         """Get list of critical channels."""

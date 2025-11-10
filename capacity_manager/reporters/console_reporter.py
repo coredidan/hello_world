@@ -41,6 +41,10 @@ class ConsoleReporter:
         # Print summary
         self._print_summary(report)
 
+        # Print financial summary if available
+        if report.financial_summary:
+            self._print_financial_summary(report.financial_summary)
+
         # Print critical channels
         if report.get_critical_channels():
             self._print_critical_channels(report.get_critical_channels())
@@ -198,6 +202,64 @@ class ConsoleReporter:
 
         self.console.print(table)
         self.console.print()
+
+    def _print_financial_summary(self, financial_summary):
+        """Print financial summary."""
+        from ..cost_calculator.calculator import FinancialSummary
+
+        table = Table(title="💰 Financial Summary", box=box.ROUNDED)
+        table.add_column("Metric", style="cyan", no_wrap=True)
+        table.add_column("Value", justify="right", style="white")
+
+        # Format currency
+        currency = "$"  # Can be configured
+
+        table.add_row("Total Monthly Cost", f"[bold]{currency}{financial_summary.total_monthly_cost:,.2f}[/]")
+        table.add_row("Total Yearly Cost", f"[bold]{currency}{financial_summary.total_yearly_cost:,.2f}[/]")
+        table.add_row("", "")  # Separator
+
+        # By type
+        if financial_summary.external_channels_cost > 0:
+            table.add_row("External Channels", f"{currency}{financial_summary.external_channels_cost:,.2f}")
+        if financial_summary.inter_site_channels_cost > 0:
+            table.add_row("Inter-Site Channels", f"{currency}{financial_summary.inter_site_channels_cost:,.2f}")
+        if financial_summary.transport_channels_cost > 0:
+            table.add_row("Transport Channels", f"{currency}{financial_summary.transport_channels_cost:,.2f}")
+
+        table.add_row("", "")  # Separator
+
+        # Efficiency metrics
+        table.add_row("Total Capacity", f"{financial_summary.total_capacity_mbps:,.0f} Mbps")
+        table.add_row("Avg Cost per Mbps", f"{currency}{financial_summary.avg_cost_per_mbps:.2f}/month")
+        table.add_row("Avg Utilization", f"{financial_summary.total_utilization_percent:.1f}%")
+
+        # Waste metrics
+        if financial_summary.unused_capacity_cost > 0:
+            table.add_row("", "")  # Separator
+            table.add_row("Unused Capacity", f"[yellow]{financial_summary.unused_capacity_mbps:,.0f} Mbps[/]")
+            table.add_row("Unused Capacity Cost", f"[yellow]{currency}{financial_summary.unused_capacity_cost:,.2f}/month[/]")
+
+        # Projected costs if available
+        if financial_summary.projected_monthly_cost:
+            table.add_row("", "")  # Separator
+            table.add_row("Projected Monthly (with upgrades)", f"[blue]{currency}{financial_summary.projected_monthly_cost:,.2f}[/]")
+            table.add_row("Projected Yearly (with upgrades)", f"[blue]{currency}{financial_summary.projected_yearly_cost:,.2f}[/]")
+            if financial_summary.projected_increase_percent:
+                table.add_row("Projected Increase", f"[blue]+{financial_summary.projected_increase_percent:.1f}%[/]")
+
+        self.console.print(table)
+        self.console.print()
+
+        # Print top expensive channels
+        if financial_summary.top_expensive_channels:
+            self.console.print("[bold]💸 Top 5 Most Expensive Channels:[/]")
+            for idx, ch in enumerate(financial_summary.top_expensive_channels[:5], 1):
+                self.console.print(
+                    f"  {idx}. [cyan]{ch['name']}[/]: "
+                    f"{currency}{ch['cost']:,.2f}/month "
+                    f"({ch['capacity']:,.0f} Mbps @ {currency}{ch['cost_per_mbps']:.2f}/Mbps)"
+                )
+            self.console.print()
 
     def _print_by_type(self, report: CapacityReport):
         """Print breakdown by channel type."""

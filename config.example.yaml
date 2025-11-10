@@ -44,6 +44,17 @@ channels:
     device_a: "CORE-RTR-01"
     interface_pattern: "GigabitEthernet0/0/1"
     tags: ["internet", "primary", "critical"]
+    # Pricing configuration
+    pricing:
+      model: "per_mbps"  # flat_rate, per_mbps, tiered, usage_based
+      currency: "USD"
+      cost_per_mbps_month: 50  # $50 per Mbps per month
+      setup_fee: 5000  # One-time setup fee
+      upgrade_fee_percent: 10  # 10% fee on upgrade cost
+      support_cost_month: 1000  # Monthly support
+      sla_cost_month: 500  # Premium SLA
+      contract_term_months: 12
+      notes: "Standard enterprise contract"
 
   - name: "IX-Moscow"
     type: "external"
@@ -53,6 +64,21 @@ channels:
     device_a: "CORE-RTR-02"
     interface_pattern: "TenGigE0/1/0"
     tags: ["peering", "ix"]
+    # Tiered pricing example
+    pricing:
+      model: "tiered"
+      currency: "USD"
+      tiers:
+        - up_to_mbps: 10000
+          cost_per_mbps: 30
+        - up_to_mbps: 40000
+          cost_per_mbps: 25
+        - up_to_mbps: 100000
+          cost_per_mbps: 20
+      setup_fee: 10000
+      support_cost_month: 2000
+      contract_term_months: 24
+      notes: "IX Moscow peering - volume discounts apply"
 
   # Inter-site channels (каналы между площадками)
   - name: "MSK-DC1-to-SPB-DC1"
@@ -65,6 +91,17 @@ channels:
     device_b: "CORE-RTR-05"
     interface_pattern: "HundredGigE0/2/0"
     tags: ["backbone", "critical"]
+    # Flat rate pricing example
+    pricing:
+      model: "flat_rate"
+      currency: "USD"
+      monthly_cost: 80000  # Fixed monthly cost
+      setup_fee: 50000
+      upgrade_fee_percent: 15
+      support_cost_month: 5000
+      sla_cost_month: 2000
+      contract_term_months: 36
+      notes: "100G dark fiber lease"
 
   - name: "MSK-DC1-to-EKB-DC1"
     type: "inter_site"
@@ -75,6 +112,16 @@ channels:
     device_a: "CORE-RTR-03"
     device_b: "CORE-RTR-10"
     tags: ["regional"]
+    # Usage-based pricing example
+    pricing:
+      model: "usage_based"
+      currency: "USD"
+      monthly_cost: 15000  # Base cost
+      cost_per_gb: 0.05  # $0.05 per GB over included
+      included_gb_month: 100000  # 100TB included
+      support_cost_month: 1500
+      contract_term_months: 12
+      notes: "Pay-per-use with 100TB included"
 
   # Transport channels (внутриплощадочные каналы между оборудованием)
   - name: "CORE-01-to-AGG-01"
@@ -86,6 +133,12 @@ channels:
     device_b: "AGG-SW-01"
     interface_pattern: "TenGigE0/3/0"
     tags: ["core", "aggregation"]
+    # Internal transport - часто без прямой стоимости или учёт amortization
+    pricing:
+      model: "flat_rate"
+      currency: "USD"
+      monthly_cost: 2000  # Equipment amortization
+      notes: "Internal infrastructure amortization"
 
   - name: "CORE-02-to-AGG-02"
     type: "transport"
@@ -96,3 +149,8 @@ channels:
     device_b: "AGG-SW-02"
     interface_pattern: "TenGigE0/3/1"
     tags: ["core", "aggregation", "redundant"]
+    pricing:
+      model: "flat_rate"
+      currency: "USD"
+      monthly_cost: 2000
+      notes: "Internal infrastructure amortization"

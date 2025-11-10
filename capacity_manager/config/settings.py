@@ -67,6 +67,21 @@ class ChannelDefinition:
     interface_pattern: Optional[str] = None  # Regex pattern to match interfaces
     tags: List[str] = field(default_factory=list)
 
+    # Pricing configuration
+    pricing_model: Optional[str] = None  # flat_rate, per_mbps, tiered, usage_based
+    currency: str = "USD"
+    monthly_cost: Optional[float] = None
+    cost_per_mbps_month: Optional[float] = None
+    tiers: List[Dict[str, float]] = field(default_factory=list)
+    setup_fee: float = 0.0
+    upgrade_fee_percent: float = 0.0
+    cost_per_gb: Optional[float] = None
+    included_gb_month: float = 0.0
+    support_cost_month: float = 0.0
+    sla_cost_month: float = 0.0
+    contract_term_months: int = 12
+    pricing_notes: str = ""
+
 
 @dataclass
 class Config:
@@ -142,7 +157,21 @@ class Config:
                 device_a=ch.get('device_a'),
                 device_b=ch.get('device_b'),
                 interface_pattern=ch.get('interface_pattern'),
-                tags=ch.get('tags', [])
+                tags=ch.get('tags', []),
+                # Pricing fields
+                pricing_model=ch.get('pricing', {}).get('model'),
+                currency=ch.get('pricing', {}).get('currency', 'USD'),
+                monthly_cost=ch.get('pricing', {}).get('monthly_cost'),
+                cost_per_mbps_month=ch.get('pricing', {}).get('cost_per_mbps_month'),
+                tiers=ch.get('pricing', {}).get('tiers', []),
+                setup_fee=ch.get('pricing', {}).get('setup_fee', 0.0),
+                upgrade_fee_percent=ch.get('pricing', {}).get('upgrade_fee_percent', 0.0),
+                cost_per_gb=ch.get('pricing', {}).get('cost_per_gb'),
+                included_gb_month=ch.get('pricing', {}).get('included_gb_month', 0.0),
+                support_cost_month=ch.get('pricing', {}).get('support_cost_month', 0.0),
+                sla_cost_month=ch.get('pricing', {}).get('sla_cost_month', 0.0),
+                contract_term_months=ch.get('pricing', {}).get('contract_term_months', 12),
+                pricing_notes=ch.get('pricing', {}).get('notes', '')
             )
             for ch in channels_data
         ]
