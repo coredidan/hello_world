@@ -45,5 +45,8 @@ reports/
 *.xlsx
 *.csv
 
+# Discovery output
+discovered_channels*.yaml
+
 # Logs
 *.log
