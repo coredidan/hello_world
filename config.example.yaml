@@ -1,0 +1,98 @@
+# Example configuration file for Capacity Manager
+# Copy to config.yaml and adjust for your environment
+
+grafana:
+  url: "https://grafana.example.com"
+  # Token can be set directly or via environment variable
+  # Use $ENV_VAR_NAME to read from environment
+  token: "$GRAFANA_TOKEN"  # or paste token directly
+  verify_ssl: true
+  timeout: 30
+  # Optional: specify datasource UID (uses first available if not set)
+  datasource_uid: null
+
+thresholds:
+  warning_percent: 70.0
+  critical_percent: 85.0
+
+report:
+  output_dir: "./reports"
+  include_graphs: true
+  top_channels_limit: 20
+
+metrics:
+  # Default time range for analysis (in hours)
+  default_hours: 24
+
+  # Metric names from your Prometheus/monitoring system
+  traffic_in_metric: "ifInOctets"
+  traffic_out_metric: "ifOutOctets"
+  errors_in_metric: "ifInErrors"
+  errors_out_metric: "ifOutErrors"
+
+  # Sampling interval
+  sample_interval_minutes: 5
+
+# Channel definitions
+channels:
+  # External channels (интернет-каналы, пиринги)
+  - name: "Internet-Provider1"
+    type: "external"
+    capacity_mbps: 10000
+    description: "Primary Internet uplink"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-01"
+    interface_pattern: "GigabitEthernet0/0/1"
+    tags: ["internet", "primary", "critical"]
+
+  - name: "IX-Moscow"
+    type: "external"
+    capacity_mbps: 40000
+    description: "Moscow Internet Exchange"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-02"
+    interface_pattern: "TenGigE0/1/0"
+    tags: ["peering", "ix"]
+
+  # Inter-site channels (каналы между площадками)
+  - name: "MSK-DC1-to-SPB-DC1"
+    type: "inter_site"
+    capacity_mbps: 100000
+    description: "Moscow to St.Petersburg backbone"
+    site_a: "MSK-DC1"
+    site_b: "SPB-DC1"
+    device_a: "CORE-RTR-01"
+    device_b: "CORE-RTR-05"
+    interface_pattern: "HundredGigE0/2/0"
+    tags: ["backbone", "critical"]
+
+  - name: "MSK-DC1-to-EKB-DC1"
+    type: "inter_site"
+    capacity_mbps: 40000
+    description: "Moscow to Ekaterinburg link"
+    site_a: "MSK-DC1"
+    site_b: "EKB-DC1"
+    device_a: "CORE-RTR-03"
+    device_b: "CORE-RTR-10"
+    tags: ["regional"]
+
+  # Transport channels (внутриплощадочные каналы между оборудованием)
+  - name: "CORE-01-to-AGG-01"
+    type: "transport"
+    capacity_mbps: 20000
+    description: "Core to Aggregation link"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-01"
+    device_b: "AGG-SW-01"
+    interface_pattern: "TenGigE0/3/0"
+    tags: ["core", "aggregation"]
+
+  - name: "CORE-02-to-AGG-02"
+    type: "transport"
+    capacity_mbps: 20000
+    description: "Core to Aggregation link (redundant)"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-02"
+    device_b: "AGG-SW-02"
+    interface_pattern: "TenGigE0/3/1"
+    tags: ["core", "aggregation", "redundant"]
