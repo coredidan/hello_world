@@ -33,8 +33,11 @@ ENV/
 *~
 
 # Config files with sensitive data
+config.yaml
 config.local.yaml
+config.test.yaml
 *.local.yaml
+*.test.yaml
 
 # Reports
 reports/
