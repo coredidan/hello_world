@@ -255,15 +255,110 @@ class ConsoleReporter:
         if analysis.trend_direction:
             table.add_row("Trend", f"{analysis.trend_direction} ({analysis.trend_rate_percent:.2f}%/day)")
 
+        # Forecast info
+        if analysis.forecast_confidence:
+            table.add_row("Forecast Confidence", f"{analysis.forecast_confidence:.0%}")
+        if analysis.is_accelerating:
+            table.add_row("Growth Pattern", "[red]Accelerating[/]")
+        if analysis.seasonal_pattern:
+            table.add_row("Seasonal Pattern", analysis.seasonal_pattern)
+
         self.console.print(table)
         self.console.print()
 
-        # Print recommendations
-        if analysis.recommendations:
+        # Print forecast predictions
+        if analysis.forecast:
+            self._print_forecast_section(analysis)
+
+        # Print structured recommendations
+        if analysis.structured_recommendations:
+            self._print_structured_recommendations(analysis.structured_recommendations)
+        # Fallback to legacy recommendations
+        elif analysis.recommendations:
             self.console.print("[bold]Recommendations:[/]")
             for rec in analysis.recommendations:
                 self.console.print(f"  • {rec}")
             self.console.print()
+
+    def _print_forecast_section(self, analysis: ChannelAnalysis):
+        """Print forecast information."""
+        forecast = analysis.forecast
+
+        self.console.print("[bold cyan]📊 Forecast (90 days):[/]")
+        self.console.print()
+
+        # Days to thresholds
+        if forecast.days_to_warning:
+            self.console.print(f"  [yellow]⚠️  Warning threshold in {forecast.days_to_warning} days[/]")
+        if forecast.days_to_critical:
+            self.console.print(f"  [red]🚨 Critical threshold in {forecast.days_to_critical} days[/]")
+        if forecast.days_to_capacity:
+            self.console.print(f"  [red]📈 95% capacity in {forecast.days_to_capacity} days[/]")
+
+        if forecast.is_accelerating:
+            self.console.print(f"  [red]⚡ Growth is accelerating![/]")
+
+        if forecast.seasonal_pattern:
+            self.console.print(f"  [blue]📅 Seasonal pattern detected: {forecast.seasonal_pattern}[/]")
+
+        self.console.print()
+
+    def _print_structured_recommendations(self, recommendations):
+        """Print structured recommendations with priorities."""
+        from ..recommendations.engine import RecommendationPriority
+
+        self.console.print("[bold]💡 Recommendations:[/]")
+        self.console.print()
+
+        # Group by priority
+        priority_groups = {
+            RecommendationPriority.CRITICAL: [],
+            RecommendationPriority.HIGH: [],
+            RecommendationPriority.MEDIUM: [],
+            RecommendationPriority.LOW: []
+        }
+
+        for rec in recommendations:
+            priority_groups[rec.priority].append(rec)
+
+        # Print by priority
+        for priority in [RecommendationPriority.CRITICAL, RecommendationPriority.HIGH,
+                        RecommendationPriority.MEDIUM, RecommendationPriority.LOW]:
+            recs = priority_groups[priority]
+            if not recs:
+                continue
+
+            # Priority header
+            if priority == RecommendationPriority.CRITICAL:
+                self.console.print("[bold red]🚨 CRITICAL PRIORITY:[/]")
+            elif priority == RecommendationPriority.HIGH:
+                self.console.print("[bold yellow]⚠️  HIGH PRIORITY:[/]")
+            elif priority == RecommendationPriority.MEDIUM:
+                self.console.print("[bold blue]📋 MEDIUM PRIORITY:[/]")
+            else:
+                self.console.print("[bold dim]ℹ️  LOW PRIORITY:[/]")
+
+            for rec in recs:
+                self.console.print(f"\n  [bold]{rec.title}[/]")
+                self.console.print(f"  {rec.description}")
+
+                if rec.timeline_weeks:
+                    self.console.print(f"  [dim]Timeline: {rec.timeline_weeks} weeks[/]")
+
+                if rec.estimated_cost:
+                    self.console.print(f"  [dim]Estimated cost: {rec.estimated_cost}[/]")
+
+                if rec.action_items:
+                    self.console.print(f"  [cyan]Action items:[/]")
+                    for item in rec.action_items:
+                        self.console.print(f"    • {item}")
+
+                if rec.business_impact:
+                    self.console.print(f"  [yellow]Business impact:[/] {rec.business_impact}")
+
+                self.console.print()
+
+        self.console.print()
 
     def _get_util_color(self, utilization: float) -> str:
         """Get color for utilization percentage."""

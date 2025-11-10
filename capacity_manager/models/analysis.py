@@ -1,9 +1,13 @@
 """Data models for analysis results."""
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
 from .channel import Channel, ChannelMetrics, UtilizationLevel
+
+if TYPE_CHECKING:
+    from ..forecasting.predictor import ForecastResult
+    from ..recommendations.engine import Recommendation
 
 
 @dataclass
@@ -19,9 +23,19 @@ class ChannelAnalysis:
     # Predictions
     days_to_warning: Optional[int] = None
     days_to_critical: Optional[int] = None
+    days_to_capacity: Optional[int] = None  # Days to 95% utilization
 
-    # Recommendations
+    # Legacy recommendations (simple strings)
     recommendations: List[str] = field(default_factory=list)
+
+    # Advanced analytics (optional)
+    forecast: Optional['ForecastResult'] = None
+    structured_recommendations: List['Recommendation'] = field(default_factory=list)
+
+    # Forecast insights
+    forecast_confidence: Optional[float] = None  # 0-1
+    is_accelerating: bool = False
+    seasonal_pattern: Optional[str] = None
 
     @property
     def is_critical(self) -> bool:

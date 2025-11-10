@@ -6,6 +6,8 @@ import logging
 
 from ..models.channel import ChannelMetrics, UtilizationLevel
 from ..models.analysis import ChannelAnalysis, CapacityReport, SummaryStats
+from ..forecasting.predictor import CapacityPredictor
+from ..recommendations.engine import RecommendationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,9 @@ class CapacityAnalyzer:
     def __init__(
         self,
         warning_threshold: float = 70.0,
-        critical_threshold: float = 85.0
+        critical_threshold: float = 85.0,
+        enable_forecasting: bool = True,
+        enable_recommendations: bool = True
     ):
         """
         Initialize capacity analyzer.
@@ -29,9 +33,26 @@ class CapacityAnalyzer:
         Args:
             warning_threshold: Warning threshold percentage
             critical_threshold: Critical threshold percentage
+            enable_forecasting: Enable advanced forecasting
+            enable_recommendations: Enable structured recommendations
         """
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
+        self.enable_forecasting = enable_forecasting
+        self.enable_recommendations = enable_recommendations
+
+        # Initialize advanced modules
+        if enable_forecasting:
+            self.predictor = CapacityPredictor(
+                warning_threshold=warning_threshold,
+                critical_threshold=critical_threshold
+            )
+
+        if enable_recommendations:
+            self.recommendation_engine = RecommendationEngine(
+                warning_threshold=warning_threshold,
+                critical_threshold=critical_threshold
+            )
 
     def analyze_channel(
         self,
@@ -39,27 +60,27 @@ class CapacityAnalyzer:
         historical_metrics: Optional[List[ChannelMetrics]] = None
     ) -> ChannelAnalysis:
         """
-        Analyze a single channel.
+        Analyze a single channel with advanced forecasting and recommendations.
 
         Args:
             metrics: Current channel metrics
             historical_metrics: Historical metrics for trend analysis
 
         Returns:
-            ChannelAnalysis result
+            ChannelAnalysis result with forecasts and structured recommendations
         """
         analysis = ChannelAnalysis(metrics=metrics)
 
-        # Add recommendations based on utilization
+        # Add legacy recommendations based on utilization
         analysis.recommendations = self._generate_recommendations(metrics)
 
-        # Perform trend analysis if historical data available
+        # Perform basic trend analysis
         if historical_metrics and len(historical_metrics) > 1:
             trend = self._analyze_trend(historical_metrics)
             analysis.trend_direction = trend['direction']
             analysis.trend_rate_percent = trend['rate']
 
-            # Predict days to thresholds
+            # Predict days to thresholds (basic method)
             if trend['direction'] == 'increasing' and trend['rate'] > 0:
                 analysis.days_to_warning = self._predict_days_to_threshold(
                     current_util=metrics.max_utilization_percent,
@@ -71,6 +92,30 @@ class CapacityAnalyzer:
                     trend_rate=trend['rate'],
                     threshold=self.critical_threshold
                 )
+
+        # Advanced forecasting
+        if self.enable_forecasting and historical_metrics and len(historical_metrics) >= 7:
+            forecast = self._generate_forecast(metrics, historical_metrics)
+            if forecast:
+                analysis.forecast = forecast
+                analysis.forecast_confidence = forecast.forecast_confidence
+                analysis.is_accelerating = forecast.is_accelerating
+                analysis.seasonal_pattern = forecast.seasonal_pattern
+
+                # Use forecast predictions if available
+                if forecast.days_to_warning:
+                    analysis.days_to_warning = forecast.days_to_warning
+                if forecast.days_to_critical:
+                    analysis.days_to_critical = forecast.days_to_critical
+                if forecast.days_to_capacity:
+                    analysis.days_to_capacity = forecast.days_to_capacity
+
+        # Generate structured recommendations
+        if self.enable_recommendations:
+            analysis.structured_recommendations = self.recommendation_engine.generate_recommendations(
+                metrics=metrics,
+                forecast=analysis.forecast
+            )
 
         return analysis
 
@@ -271,3 +316,41 @@ class CapacityAnalyzer:
             avg_utilization_percent=avg_util,
             max_utilization_percent=max_util
         )
+
+    def _generate_forecast(
+        self,
+        metrics: ChannelMetrics,
+        historical_metrics: List[ChannelMetrics]
+    ):
+        """
+        Generate forecast using advanced prediction algorithms.
+
+        Args:
+            metrics: Current metrics
+            historical_metrics: Historical data points
+
+        Returns:
+            ForecastResult or None
+        """
+        try:
+            # Convert metrics to (timestamp, utilization) tuples
+            historical_data = [
+                (m.timestamp, m.max_utilization_percent)
+                for m in historical_metrics
+            ]
+
+            # Try different forecasting methods and use the best one
+            # For now, use exponential smoothing as it's good for most cases
+            forecast = self.predictor.forecast_exponential_smoothing(
+                historical_data=historical_data,
+                forecast_days=90
+            )
+
+            # Set channel name
+            forecast.channel_name = metrics.channel.name
+
+            return forecast
+
+        except Exception as e:
+            logger.warning(f"Forecasting failed for {metrics.channel.name}: {e}")
+            return None
