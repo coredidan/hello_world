@@ -14,6 +14,8 @@ from ..reporters.console_reporter import ConsoleReporter
 from ..reporters.html_reporter import HTMLReporter
 from ..reporters.csv_reporter import CSVReporter
 from ..models.channel import Channel, ChannelType
+from ..discovery.channel_discovery import ChannelDiscovery
+from ..discovery.classifier import ChannelClassifier, ClassificationRule, ChannelType as DiscoveryChannelType
 
 
 console = Console()
@@ -337,6 +339,154 @@ def detail(ctx, channel_name, hours):
     except Exception as e:
         console.print(f"[red]Error: {e}[/]")
         logger.exception("Detail view failed")
+
+
+@main.command()
+@click.option('--output', '-o', help='Output YAML file for discovered channels')
+@click.option('--show-stats/--no-stats', default=True, help='Show discovery statistics')
+@click.option('--filter-type', '-t', type=click.Choice(['external', 'inter_site', 'transport', 'all']), default='all', help='Filter by channel type')
+@click.pass_context
+def discover(ctx, output, show_stats, filter_type):
+    """
+    Discover and classify network channels from Grafana.
+
+    Automatically finds network interfaces in Grafana and classifies them
+    based on interface description prefixes configured in the config file.
+    """
+    config = ctx.obj.get('config')
+    if not config:
+        console.print("[red]Config not loaded[/]")
+        return
+
+    if not config.discovery.enabled:
+        console.print("[yellow]⚠ Discovery is disabled in config[/]")
+        console.print("[yellow]Set discovery.enabled: true in your config file[/]")
+        return
+
+    console.print("[cyan]🔍 Starting channel discovery...[/]")
+    console.print(f"Datasource: {config.discovery.datasource}")
+    console.print(f"Query pattern: {config.discovery.query_pattern}")
+    console.print(f"Min capacity: {config.discovery.min_capacity_mbps} Mbps")
+    console.print()
+
+    try:
+        # Initialize Grafana client
+        client = GrafanaClient(
+            url=config.grafana.url,
+            token=config.grafana.token,
+            verify_ssl=config.grafana.verify_ssl,
+            timeout=config.grafana.timeout
+        )
+
+        # Build classifier from config rules
+        classification_rules = []
+        if config.discovery.auto_classify and config.discovery.classification_rules:
+            for rule_cfg in config.discovery.classification_rules:
+                channel_type_map = {
+                    'external': DiscoveryChannelType.EXTERNAL,
+                    'inter_site': DiscoveryChannelType.INTER_SITE,
+                    'transport': DiscoveryChannelType.TRANSPORT
+                }
+                channel_type = channel_type_map.get(rule_cfg.channel_type, DiscoveryChannelType.UNKNOWN)
+
+                rule = ClassificationRule(
+                    prefix=rule_cfg.prefix,
+                    channel_type=channel_type,
+                    priority=rule_cfg.priority,
+                    case_sensitive=rule_cfg.case_sensitive,
+                    description=rule_cfg.description
+                )
+                classification_rules.append(rule)
+
+        classifier = ChannelClassifier(rules=classification_rules if classification_rules else None)
+
+        # Get existing channel names to avoid duplicates
+        existing_channels = [ch.name for ch in config.channels]
+
+        # Initialize discovery
+        discovery = ChannelDiscovery(
+            grafana_client=client,
+            classifier=classifier,
+            existing_channels=existing_channels
+        )
+
+        # Perform discovery
+        console.print("[cyan]Querying Grafana for interfaces...[/]")
+        result = discovery.discover_channels(
+            datasource=config.discovery.datasource,
+            query_pattern=config.discovery.query_pattern,
+            min_capacity_mbps=config.discovery.min_capacity_mbps,
+            exclude_patterns=config.discovery.exclude_patterns
+        )
+
+        console.print(f"[green]✓ Discovery complete[/]")
+        console.print()
+
+        # Show statistics
+        if show_stats:
+            console.print("[cyan]📊 Discovery Statistics:[/]")
+            console.print(f"Total channels found: [bold]{result.total_found}[/]")
+            console.print(f"Already configured: [yellow]{len(result.already_configured)}[/]")
+            console.print(f"New channels: [green]{len(result.new_channels)}[/]")
+            console.print()
+
+            console.print("[cyan]By Type:[/]")
+            for channel_type, count in result.by_type.items():
+                console.print(f"  {channel_type}: {count}")
+            console.print()
+
+        # Filter channels by type if requested
+        channels_to_show = result.new_channels
+        if filter_type != 'all':
+            channels_to_show = [
+                ch for ch in result.new_channels
+                if ch.channel_type == filter_type
+            ]
+
+        # Display new channels
+        if channels_to_show:
+            console.print(f"[cyan]🆕 New Channels ({len(channels_to_show)}):[/]")
+            console.print()
+
+            for ch in channels_to_show:
+                type_color = {
+                    'external': 'blue',
+                    'inter_site': 'magenta',
+                    'transport': 'cyan',
+                    'unknown': 'yellow'
+                }.get(ch.channel_type, 'white')
+
+                console.print(f"[bold]{ch.interface_name}[/]")
+                console.print(f"  Type: [{type_color}]{ch.channel_type}[/{type_color}]")
+                if ch.description:
+                    console.print(f"  Description: {ch.description}")
+                if ch.device_name:
+                    console.print(f"  Device: {ch.device_name}")
+                if ch.capacity_mbps:
+                    console.print(f"  Capacity: {ch.capacity_mbps:.0f} Mbps")
+                if ch.current_utilization:
+                    console.print(f"  Current utilization: {ch.current_utilization:.1f}%")
+                console.print()
+        else:
+            console.print("[yellow]No new channels found[/]")
+            console.print()
+
+        # Generate YAML output if requested
+        if output and result.new_channels:
+            yaml_content = discovery.generate_config_yaml(result.new_channels)
+
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(yaml_content)
+
+            console.print(f"[green]✓ Configuration saved to: {output}[/]")
+            console.print(f"[yellow]⚠ Review and adjust the configuration before adding to your main config[/]")
+
+    except Exception as e:
+        console.print(f"[red]Error during discovery: {e}[/]")
+        logger.exception("Discovery failed")
 
 
 if __name__ == '__main__':
