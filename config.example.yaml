@@ -33,6 +33,116 @@ metrics:
   # Sampling interval
   sample_interval_minutes: 5
 
+# Discovery settings (автоматическое обнаружение и классификация каналов)
+discovery:
+  # Enable automatic channel discovery
+  enabled: false
+
+  # Grafana datasource to query
+  datasource: "prometheus"
+
+  # Metric pattern to search for interfaces
+  # Common patterns: ifHCInOctets, ifHCOutOctets, ifSpeed
+  query_pattern: "ifHCInOctets"
+
+  # Minimum capacity threshold (Mbps) - ignore interfaces below this
+  min_capacity_mbps: 100.0
+
+  # Patterns to exclude from discovery (regex)
+  exclude_patterns:
+    - "^lo"           # Loopback interfaces
+    - "^vlan"         # VLAN interfaces
+    - "^mgmt"         # Management interfaces
+    - "^Null"         # Null interfaces
+    - "test"          # Test interfaces
+
+  # Enable automatic classification based on description prefixes
+  auto_classify: true
+
+  # Classification rules (checked by priority, highest first)
+  # Rule format: prefix -> channel_type
+  classification_rules:
+    # External channels (интернет, пиринги, транзиты)
+    - prefix: "EXT:"
+      channel_type: "external"
+      priority: 100
+      case_sensitive: false
+      description: "Explicit external channel marker"
+
+    - prefix: "IX:"
+      channel_type: "external"
+      priority: 90
+      case_sensitive: false
+      description: "Internet Exchange peering"
+
+    - prefix: "PEER:"
+      channel_type: "external"
+      priority: 90
+      case_sensitive: false
+      description: "Peering connection"
+
+    - prefix: "TRANSIT:"
+      channel_type: "external"
+      priority: 90
+      case_sensitive: false
+      description: "Transit provider"
+
+    - prefix: "ISP:"
+      channel_type: "external"
+      priority: 85
+      case_sensitive: false
+      description: "ISP connection"
+
+    # Inter-site channels (каналы между площадками)
+    - prefix: "SITE:"
+      channel_type: "inter_site"
+      priority: 100
+      case_sensitive: false
+      description: "Site-to-site link"
+
+    - prefix: "WAN:"
+      channel_type: "inter_site"
+      priority: 90
+      case_sensitive: false
+      description: "WAN link"
+
+    - prefix: "MPLS:"
+      channel_type: "inter_site"
+      priority: 85
+      case_sensitive: false
+      description: "MPLS network"
+
+    # Transport channels (транспортные каналы)
+    - prefix: "TRANSPORT:"
+      channel_type: "transport"
+      priority: 100
+      case_sensitive: false
+      description: "Transport link"
+
+    - prefix: "DWDM:"
+      channel_type: "transport"
+      priority: 90
+      case_sensitive: false
+      description: "DWDM transport"
+
+    - prefix: "FIBER:"
+      channel_type: "transport"
+      priority: 85
+      case_sensitive: false
+      description: "Fiber link"
+
+    - prefix: "L2:"
+      channel_type: "transport"
+      priority: 80
+      case_sensitive: false
+      description: "Layer 2 transport"
+
+    - prefix: "TRUNK:"
+      channel_type: "transport"
+      priority: 80
+      case_sensitive: false
+      description: "Trunk link"
+
 # Channel definitions
 channels:
   # External channels (интернет-каналы, пиринги)
@@ -79,6 +189,26 @@ channels:
       support_cost_month: 2000
       contract_term_months: 24
       notes: "IX Moscow peering - volume discounts apply"
+
+  # Burstable billing example (95th percentile)
+  - name: "Peering-Provider-X"
+    type: "external"
+    capacity_mbps: 10000  # Port capacity
+    description: "Burstable peering with 95th percentile billing"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-03"
+    interface_pattern: "TenGigE0/1/1"
+    tags: ["peering", "burstable"]
+    pricing:
+      model: "burstable_95"
+      currency: "USD"
+      committed_rate_mbps: 1000  # Minimum commit (always billed)
+      burstable_rate_mbps: 10000  # Maximum burst (port capacity)
+      cost_per_mbps_month: 40  # Cost per Mbps at 95th percentile
+      setup_fee: 3000
+      support_cost_month: 500
+      contract_term_months: 12
+      notes: "Burstable 10G port with 1G commit. Billing based on 95th percentile of traffic, min 1G. Allows bursts up to 10G without penalty."
 
   # Inter-site channels (каналы между площадками)
   - name: "MSK-DC1-to-SPB-DC1"

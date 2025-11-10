@@ -12,6 +12,7 @@ class PricingModel(Enum):
     PER_MBPS = "per_mbps"  # Цена за Mbps
     TIERED = "tiered"  # Ступенчатая (скидки за объём)
     USAGE_BASED = "usage_based"  # По фактическому использованию
+    BURSTABLE_95 = "burstable_95"  # Burstable billing по 95-му перцентилю
 
 
 @dataclass
@@ -39,6 +40,11 @@ class ChannelPricing:
     # Usage-based pricing
     cost_per_gb: Optional[float] = None  # Стоимость за GB трафика
     included_gb_month: float = 0.0  # Включённый трафик в месяц
+
+    # Burstable 95th percentile pricing
+    committed_rate_mbps: Optional[float] = None  # Минимальная гарантированная скорость
+    burstable_rate_mbps: Optional[float] = None  # Максимальная скорость (burst limit)
+    percentile_samples: List[float] = field(default_factory=list)  # Samples для расчёта 95%
 
     # Additional costs
     support_cost_month: float = 0.0  # Поддержка
@@ -189,6 +195,36 @@ class CostCalculator:
                 usage_cost = overage_gb * (pricing.cost_per_gb or 0.0)
                 breakdown.usage_cost = usage_cost
                 components["Usage Cost"] = usage_cost
+
+        elif pricing.pricing_model == PricingModel.BURSTABLE_95:
+            # Burstable billing with 95th percentile
+            # Calculate 95th percentile from samples or use current utilization
+            if pricing.percentile_samples and len(pricing.percentile_samples) > 0:
+                percentile_95 = self._calculate_95th_percentile(pricing.percentile_samples)
+            elif utilization_percent is not None:
+                # Estimate 95th percentile from current utilization
+                # Assume current utilization is typical
+                percentile_95 = capacity_mbps * (utilization_percent / 100.0)
+            else:
+                # No data - use committed rate
+                percentile_95 = pricing.committed_rate_mbps or capacity_mbps
+
+            # Billing is based on max of (committed_rate, 95th_percentile)
+            billable_mbps = max(
+                pricing.committed_rate_mbps or 0,
+                percentile_95
+            )
+
+            # Don't exceed burstable limit
+            if pricing.burstable_rate_mbps:
+                billable_mbps = min(billable_mbps, pricing.burstable_rate_mbps)
+
+            base_cost = billable_mbps * (pricing.cost_per_mbps_month or 0.0)
+            components["Burstable 95th Percentile"] = base_cost
+            components[f"  - Billable Rate"] = billable_mbps
+            components[f"  - 95th Percentile"] = percentile_95
+            if pricing.committed_rate_mbps:
+                components[f"  - Committed Rate"] = pricing.committed_rate_mbps
 
         else:
             base_cost = 0.0
@@ -396,6 +432,38 @@ class CostCalculator:
             return 0
 
         return int(investment / monthly_savings)
+
+    def _calculate_95th_percentile(self, samples: List[float]) -> float:
+        """
+        Calculate 95th percentile from utilization samples.
+
+        Args:
+            samples: List of utilization measurements (in Mbps)
+
+        Returns:
+            95th percentile value
+
+        This is the standard burstable billing method:
+        - Take all samples for the billing period (usually 5-min intervals for a month)
+        - Sort them
+        - Discard top 5%
+        - Bill based on the highest remaining value
+        """
+        if not samples:
+            return 0.0
+
+        # Sort samples
+        sorted_samples = sorted(samples)
+
+        # Calculate 95th percentile index
+        # We want to discard top 5%, so we take value at 95% position
+        percentile_index = int(len(sorted_samples) * 0.95)
+
+        # Handle edge case
+        if percentile_index >= len(sorted_samples):
+            percentile_index = len(sorted_samples) - 1
+
+        return sorted_samples[percentile_index]
 
     def format_currency(
         self,
