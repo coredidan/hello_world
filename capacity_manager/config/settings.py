@@ -68,7 +68,7 @@ class ChannelDefinition:
     tags: List[str] = field(default_factory=list)
 
     # Pricing configuration
-    pricing_model: Optional[str] = None  # flat_rate, per_mbps, tiered, usage_based
+    pricing_model: Optional[str] = None  # flat_rate, per_mbps, tiered, usage_based, burstable_95
     currency: str = "USD"
     monthly_cost: Optional[float] = None
     cost_per_mbps_month: Optional[float] = None
@@ -77,6 +77,10 @@ class ChannelDefinition:
     upgrade_fee_percent: float = 0.0
     cost_per_gb: Optional[float] = None
     included_gb_month: float = 0.0
+    # Burstable billing fields
+    committed_rate_mbps: Optional[float] = None
+    burstable_rate_mbps: Optional[float] = None
+    # Additional costs
     support_cost_month: float = 0.0
     sla_cost_month: float = 0.0
     contract_term_months: int = 12
@@ -168,6 +172,8 @@ class Config:
                 upgrade_fee_percent=ch.get('pricing', {}).get('upgrade_fee_percent', 0.0),
                 cost_per_gb=ch.get('pricing', {}).get('cost_per_gb'),
                 included_gb_month=ch.get('pricing', {}).get('included_gb_month', 0.0),
+                committed_rate_mbps=ch.get('pricing', {}).get('committed_rate_mbps'),
+                burstable_rate_mbps=ch.get('pricing', {}).get('burstable_rate_mbps'),
                 support_cost_month=ch.get('pricing', {}).get('support_cost_month', 0.0),
                 sla_cost_month=ch.get('pricing', {}).get('sla_cost_month', 0.0),
                 contract_term_months=ch.get('pricing', {}).get('contract_term_months', 12),

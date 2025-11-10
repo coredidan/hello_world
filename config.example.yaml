@@ -80,6 +80,26 @@ channels:
       contract_term_months: 24
       notes: "IX Moscow peering - volume discounts apply"
 
+  # Burstable billing example (95th percentile)
+  - name: "Peering-Provider-X"
+    type: "external"
+    capacity_mbps: 10000  # Port capacity
+    description: "Burstable peering with 95th percentile billing"
+    site_a: "MSK-DC1"
+    device_a: "CORE-RTR-03"
+    interface_pattern: "TenGigE0/1/1"
+    tags: ["peering", "burstable"]
+    pricing:
+      model: "burstable_95"
+      currency: "USD"
+      committed_rate_mbps: 1000  # Minimum commit (always billed)
+      burstable_rate_mbps: 10000  # Maximum burst (port capacity)
+      cost_per_mbps_month: 40  # Cost per Mbps at 95th percentile
+      setup_fee: 3000
+      support_cost_month: 500
+      contract_term_months: 12
+      notes: "Burstable 10G port with 1G commit. Billing based on 95th percentile of traffic, min 1G. Allows bursts up to 10G without penalty."
+
   # Inter-site channels (каналы между площадками)
   - name: "MSK-DC1-to-SPB-DC1"
     type: "inter_site"
