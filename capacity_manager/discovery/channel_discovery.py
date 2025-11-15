@@ -154,8 +154,9 @@ class ChannelDiscovery:
             if channel.device_name:
                 yaml_lines.append(f"    device: \"{channel.device_name}\"")
 
-            # Add placeholder for metrics query
-            yaml_lines.append("    metrics_query: \"TODO: Configure metrics query\"")
+            # Generate metrics query based on available information
+            metrics_query = self._generate_metrics_query(channel)
+            yaml_lines.append(f"    metrics_query: \"{metrics_query}\"")
 
             # Add placeholder for pricing
             yaml_lines.append("    pricing:")
@@ -166,6 +167,29 @@ class ChannelDiscovery:
             yaml_lines.append("")
 
         return "\n".join(yaml_lines)
+
+    def _generate_metrics_query(self, channel: DiscoveredChannel) -> str:
+        """
+        Generate a metrics query string for the channel.
+
+        Args:
+            channel: The discovered channel
+
+        Returns:
+            Metrics query string for Grafana/Prometheus
+        """
+        # Build the query based on available channel information
+        interface_name = channel.interface_name
+        device_name = channel.device_name
+
+        if device_name:
+            # Query with device filter for more specific matching
+            query = f"ifHCInOctets{{device=\"{device_name}\",interface=\"{interface_name}\"}}"
+        else:
+            # Query without device filter
+            query = f"ifHCInOctets{{interface=\"{interface_name}\"}}"
+
+        return query
 
     def _query_interfaces(
         self,
