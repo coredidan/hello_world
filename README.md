@@ -580,6 +580,194 @@ capacity-manager detail "Critical-Channel-Name" --hours 48
 2. Реализовать collector, возвращающий `ChannelMetrics`
 3. Остальные модули работают без изменений
 
+## Troubleshooting
+
+### Проблема: Connection failed / Grafana не доступен
+
+**Симптомы:**
+```
+✗ Connection failed
+Grafana API request failed: 403 Forbidden
+```
+
+**Возможные причины и решения:**
+
+1. **Неверный URL или токен**
+   ```bash
+   # Проверьте настройки в config.yaml
+   grafana:
+     url: "https://your-grafana.com"
+     token: "$GRAFANA_TOKEN"
+   ```
+
+2. **Проблемы с сетью/прокси**
+   - Grafana за прокси: добавьте хост в `NO_PROXY`
+   - DNS не разрешается: используйте IP адрес вместо hostname
+   - Firewall блокирует: проверьте правила доступа
+
+   ```bash
+   # Проверка доступности
+   curl -H "Authorization: Bearer YOUR_TOKEN" https://grafana.com/api/health
+   ```
+
+3. **Токен устарел или недостаточно прав**
+   - Создайте новый API ключ в Grafana: Configuration → API Keys
+   - Минимальные права: Viewer
+
+4. **SSL/TLS проблемы**
+   ```yaml
+   grafana:
+     verify_ssl: false  # Только для тестирования!
+   ```
+
+### Проблема: No channels found при discovery
+
+**Симптомы:**
+```
+Total channels found: 0
+New channels: 0
+```
+
+**Решения:**
+
+1. **Проверьте, что discovery включен**
+   ```yaml
+   discovery:
+     enabled: true
+   ```
+
+2. **Проверьте datasource**
+   ```bash
+   capacity-manager check  # Покажет доступные datasources
+   ```
+
+3. **Снизьте min_capacity_mbps**
+   ```yaml
+   discovery:
+     min_capacity_mbps: 10.0  # Вместо 100.0
+   ```
+
+4. **Проверьте exclude_patterns**
+   - Возможно, паттерны исключают нужные интерфейсы
+   - Временно уберите exclude_patterns для теста
+
+### Проблема: Каналы классифицируются как "unknown"
+
+**Причина:** Описания интерфейсов не соответствуют префиксам правил.
+
+**Решение:** Добавьте свои правила классификации:
+
+```yaml
+discovery:
+  classification_rules:
+    - prefix: "YOUR_PREFIX:"
+      channel_type: "external"  # или inter_site, transport
+      priority: 100
+      case_sensitive: false
+```
+
+**Примеры префиксов:**
+- External: `IX:`, `PEER:`, `TRANSIT:`, `ISP:`
+- Inter-site: `SITE:`, `WAN:`, `MPLS:`
+- Transport: `DWDM:`, `FIBER:`, `L2:`, `TRUNK:`
+
+### Проблема: ModuleNotFoundError
+
+**Симптом:**
+```
+ModuleNotFoundError: No module named 'click'
+```
+
+**Решение:**
+```bash
+pip install -r requirements.txt
+# Или
+pip install click rich pandas pyyaml jinja2 plotly openpyxl
+```
+
+### Проблема: Configuration errors
+
+**Симптомы:**
+```
+Configuration errors:
+  - Warning threshold must be less than critical threshold
+```
+
+**Решение:** Проверьте config.yaml на ошибки:
+```bash
+# Запустите валидацию
+capacity-manager -c config.yaml check
+```
+
+**Типичные ошибки:**
+- `warning_percent >= critical_percent` (должно быть меньше)
+- Пустые обязательные поля (url, token, name)
+- Отрицательные значения (capacity, thresholds)
+- Неверный тип канала (должен быть: external, inter_site, transport)
+
+### Проблема: Медленная работа
+
+**Решения:**
+
+1. **Уменьшите временной диапазон**
+   ```bash
+   capacity-manager report --hours 1  # Вместо 24
+   ```
+
+2. **Уменьшите количество каналов**
+   - Анализируйте только критичные каналы
+   - Используйте фильтры и tags
+
+3. **Оптимизируйте запросы к Grafana**
+   ```yaml
+   metrics:
+     sample_interval_minutes: 15  # Вместо 5
+   ```
+
+### Проблема: Неверные метрики / пустые данные
+
+**Проверьте:**
+
+1. **Правильные имена метрик**
+   ```yaml
+   metrics:
+     traffic_in_metric: "ifHCInOctets"   # Для SNMP
+     # или
+     traffic_in_metric: "interface_traffic_in"  # Для Prometheus
+   ```
+
+2. **Правильный datasource_uid**
+   ```bash
+   # Получить список datasources
+   capacity-manager check
+   ```
+
+3. **Временной диапазон**
+   - Проверьте, что данные есть за запрошенный период
+   - Попробуйте меньший диапазон: `--hours 1`
+
+### Получение помощи
+
+1. **Логи с подробностями:**
+   ```bash
+   capacity-manager -v report  # Verbose mode
+   ```
+
+2. **Проверка подключения:**
+   ```bash
+   capacity-manager check
+   ```
+
+3. **Тестовый запуск discovery:**
+   ```bash
+   python3 demo_discovery.py
+   ```
+
+4. **Создайте issue:**
+   - https://github.com/your-repo/issues
+   - Приложите вывод команд выше
+   - Укажите версию: `capacity-manager --version`
+
 ## Лицензия
 
 MIT

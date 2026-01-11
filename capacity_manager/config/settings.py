@@ -271,4 +271,27 @@ class Config:
             if channel.type not in ['external', 'transport', 'inter_site']:
                 errors.append(f"Channel {channel.name}: invalid type '{channel.type}'")
 
+        # Validate discovery configuration
+        if self.discovery.enabled:
+            if self.discovery.min_capacity_mbps and self.discovery.min_capacity_mbps < 0:
+                errors.append("Discovery: min_capacity_mbps must be non-negative")
+
+            if not self.discovery.datasource:
+                errors.append("Discovery: datasource is required when discovery is enabled")
+
+            # Validate classification rules
+            valid_channel_types = {'external', 'inter_site', 'transport'}
+            for idx, rule in enumerate(self.discovery.classification_rules):
+                if not rule.prefix:
+                    errors.append(f"Discovery rule {idx}: prefix is required")
+
+                if rule.channel_type not in valid_channel_types:
+                    errors.append(
+                        f"Discovery rule {idx}: invalid channel_type '{rule.channel_type}'. "
+                        f"Must be one of: {', '.join(valid_channel_types)}"
+                    )
+
+                if rule.priority < 0:
+                    errors.append(f"Discovery rule {idx}: priority must be non-negative")
+
         return errors
